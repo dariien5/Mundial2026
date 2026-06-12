@@ -1111,20 +1111,33 @@ const STATUS_DONE   = new Set(['FINISHED','AWARDED']);
 
 // ── Map API team names → our FLAGS keys (best-effort fuzzy)
 const NAME_MAP = {
-  'Mexico':'México','South Africa':'South Africa','Korea Republic':'South Korea',
-  'Czechia':'Czechia','Canada':'Canada','Bosnia-Herzegovina':'Bosnia & Herzegovina',
-  'United States':'USA','Paraguay':'Paraguay','Qatar':'Qatar','Switzerland':'Switzerland',
+  // API name → our dataset name
+  'Mexico':'México',
+  'United States':'USA',
+  'Bosnia-Herzegovina':'Bosnia & Herzegovina',
+  'Turkey':'Türkiye',
+  'Türkiye':'Türkiye',
+  'Korea Republic':'South Korea',
+  'South Korea':'South Korea',
+  "Côte d'Ivoire":'Ivory Coast',
+  'Ivory Coast':'Ivory Coast',
+  'IR Iran':'Iran',
+  'Iran':'Iran',
+  'DR Congo':'DR Congo',
+  'Congo DR':'DR Congo',
+  // Pass-through (API name matches ours exactly)
+  'South Africa':'South Africa','Czechia':'Czechia','Canada':'Canada',
+  'Paraguay':'Paraguay','Qatar':'Qatar','Switzerland':'Switzerland',
   'Brazil':'Brazil','Morocco':'Morocco','Haiti':'Haiti','Scotland':'Scotland',
-  'Australia':'Australia','Türkiye':'Türkiye','Germany':'Germany','Curaçao':'Curaçao',
-  'Netherlands':'Netherlands','Japan':'Japan',"Côte d'Ivoire":'Ivory Coast',
-  'Ecuador':'Ecuador','Sweden':'Sweden','Tunisia':'Tunisia','Spain':'Spain',
-  'Cape Verde':'Cape Verde','Belgium':'Belgium','Egypt':'Egypt',
-  'Saudi Arabia':'Saudi Arabia','Uruguay':'Uruguay','IR Iran':'Iran',
-  'New Zealand':'New Zealand','France':'France','Senegal':'Senegal',
-  'Iraq':'Iraq','Norway':'Norway','Argentina':'Argentina','Algeria':'Algeria',
-  'Austria':'Austria','Jordan':'Jordan','Portugal':'Portugal',
-  'DR Congo':'DR Congo','England':'England','Croatia':'Croatia',
-  'Ghana':'Ghana','Panama':'Panama','Uzbekistan':'Uzbekistan','Colombia':'Colombia',
+  'Australia':'Australia','Germany':'Germany','Curaçao':'Curaçao',
+  'Netherlands':'Netherlands','Japan':'Japan','Ecuador':'Ecuador',
+  'Sweden':'Sweden','Tunisia':'Tunisia','Spain':'Spain','Cape Verde':'Cape Verde',
+  'Belgium':'Belgium','Egypt':'Egypt','Saudi Arabia':'Saudi Arabia',
+  'Uruguay':'Uruguay','New Zealand':'New Zealand','France':'France',
+  'Senegal':'Senegal','Iraq':'Iraq','Norway':'Norway','Argentina':'Argentina',
+  'Algeria':'Algeria','Austria':'Austria','Jordan':'Jordan','Portugal':'Portugal',
+  'England':'England','Croatia':'Croatia','Ghana':'Ghana','Panama':'Panama',
+  'Uzbekistan':'Uzbekistan','Colombia':'Colombia',
 };
 function mapName(n){ return NAME_MAP[n] || n; }
 
@@ -1165,13 +1178,20 @@ async function fetchMatches(){
       const scoreH   = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? null;
       const scoreA   = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? null;
 
-      // Find matching entry in our MATCHES array
-      const local = MATCHES.find(lm =>
-        lm.home === homeNorm || lm.away === homeNorm ||
-        lm.home === awayNorm || lm.away === awayNorm ||
-        // For knockout rounds, match by approximate date
-        (lm.date === m.utcDate?.slice(0,10))
-      );
+      // Find matching entry — try exact name match first, then date+partial
+      const local = MATCHES.find(lm => {
+        const lHome = resolveTeam(lm.matchNum,'home',lm.home);
+        const lAway = resolveTeam(lm.matchNum,'away',lm.away||'');
+        // Exact match on both teams
+        if((lHome===homeNorm && lAway===awayNorm) ||
+           (lHome===awayNorm && lAway===homeNorm)) return true;
+        // Same date + one team matches
+        if(lm.date === m.utcDate?.slice(0,10)){
+          if(lHome===homeNorm || lAway===awayNorm ||
+             lHome===awayNorm || lAway===homeNorm) return true;
+        }
+        return false;
+      });
       if(!local) continue;
 
       const key = local.matchNum;
