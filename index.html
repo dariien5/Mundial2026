@@ -1133,16 +1133,13 @@ async function fetchMatches(){
   const TARGET = `${API_BASE}/competitions/${WC_CODE}/matches`;
   let data = null;
   try {
-    // football-data.org blocks CORS from GitHub Pages — route through allorigins proxy
-    const PROXY = 'https://api.allorigins.win/get?url=' + encodeURIComponent(
-      TARGET + '?X-Auth-Token=bdd2033fcc814d16a585dafe981056de'
-    );
+    // Cloudflare Worker proxy — handles CORS and injects auth token
+    const PROXY = 'https://mundial-proxy.darien-lombarderofidelitymkt.workers.dev/';
     const fetchPromise = fetch(PROXY);
-    const timeoutPromise = new Promise((_,rej) => setTimeout(() => rej(new Error('timeout')), 8000));
+    const timeoutPromise = new Promise((_,rej) => setTimeout(() => rej(new Error('timeout')), 15000));
     const res = await Promise.race([fetchPromise, timeoutPromise]);
     if(!res.ok){ return; }
-    const wrapper = await res.json();
-    data = JSON.parse(wrapper.contents);
+    data = await res.json();
     if(!data || !data.matches){ return; }
   } catch(e){
     console.warn('[WC API] fetch failed:', e.message);
@@ -1152,8 +1149,16 @@ async function fetchMatches(){
   try {
     let changed = false;
 
+    // Log first few matches so we can verify team name mapping
+    if(data.matches?.length > 0 && !window._apiNamesLogged){
+      window._apiNamesLogged = true;
+      console.log('[WC API] Team names sample:');
+      data.matches.slice(0,8).forEach(m => {
+        console.log(`  API: "${m.homeTeam?.name}" vs "${m.awayTeam?.name}" | status: ${m.status} | score: ${JSON.stringify(m.score?.fullTime)}`);
+      });
+    }
+
     for(const m of (data.matches||[])){
-      // Match our matchNum by matchday + home team name combo
       const homeNorm = mapName(m.homeTeam?.name||'');
       const awayNorm = mapName(m.awayTeam?.name||'');
       const status   = m.status;
@@ -1188,9 +1193,8 @@ async function fetchMatches(){
 
     if(changed){
       render();
-      // Rebuild bracket if visible
       if(document.getElementById('page-bracket').classList.contains('active')) renderBracket();
-      buildDatePills(); // refresh live dots on date pills
+      buildDatePills();
     }
   } catch(e){
     // parse error — ignore silently
